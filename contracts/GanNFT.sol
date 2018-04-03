@@ -16,19 +16,26 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
 
   bytes4 private constant ERC721_RECEIVED = bytes4(keccak256("onERC721Received(address,uint256,bytes)"));
 
+  // @dev claim price taken for each new GanToken
+  // generating a new token will be free in the beinging and later changed
+  uint256 public claimPrice = 0;
+
+  // @dev max supply for token
+  uint256 public maxSupply = 300;
+
   // The contract that will return tokens metadata
   Metadata public erc721Metadata;
 
-  /// @dev list of all owned face ids
-  uint256[] public faceIds;
+  /// @dev list of all owned token ids
+  uint256[] public tokenIds;
 
-  /// @dev a mpping for all the faces
-  mapping(uint256 => address) public face_mapping;
+  /// @dev a mpping for all tokens
+  mapping(uint256 => address) public tokenIdToOwner;
 
   /// @dev mapping to keep owner balances
   mapping(address => uint256) public ownershipCounts;
 
-  /// @dev mapping to owners to an array of faces that they own
+  /// @dev mapping to owners to an array of tokens that they own
   mapping(address => uint256[]) public ownerBank;
 
   /// @dev mapping to approved ids
@@ -55,14 +62,14 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   }
 
   modifier canTransfer(uint256 _tokenId, address _from, address _to) {
-    address owner = face_mapping[_tokenId];
+    address owner = tokenIdToOwner[_tokenId];
     require(tokenApprovals[_tokenId] == _to || owner == _from || operatorApprovals[_to][_to]);
     _;
   }
   /// @notice checks to see if a sender owns a _tokenId
   /// @param _tokenId The identifier for an NFT
   modifier owns(uint256 _tokenId) {
-    require(face_mapping[_tokenId] == msg.sender);
+    require(tokenIdToOwner[_tokenId] == msg.sender);
     _;
   }
 
@@ -77,6 +84,17 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   ///  The operator can manage all NFTs of the owner.
   event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
 
+  /// @notice allow the owner to set the supply max
+  function setMaxSupply(uint max) external payable onlyOwner {
+    require(max > tokenIds.length);
+
+    maxSupply = max;
+  }
+
+  /// @notice allow the owner to set a new fee for creating a GanToken
+  function setClaimPrice(uint256 price) external payable onlyOwner {
+    claimPrice = price;
+  }
 
   /// @dev Required for ERC-721 compliance.
   function balanceOf(address _owner) external view returns (uint256 balance) {
@@ -87,7 +105,7 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   /// @param _tokenId The identifier for an NFT
   /// @dev Required for ERC-721 compliance.
   function ownerOf(uint256 _tokenId) external view returns (address owner) {
-    owner = face_mapping[_tokenId];
+    owner = tokenIdToOwner[_tokenId];
   }
 
   /// @notice returns all owners' tokens will return an empty array
@@ -109,11 +127,11 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
     return result;
   }
 
-  /// @dev creates a list of all the faceids
-  function getAllFaceIds() external view returns (uint256[]) {
-    uint256[] memory result = new uint256[](faceIds.length);
+  /// @dev creates a list of all the tokenIds
+  function getAllTokenIds() external view returns (uint256[]) {
+    uint256[] memory result = new uint256[](tokenIds.length);
     for (uint i = 0; i < result.length; i++) {
-      result[i] = faceIds[i];
+      result[i] = tokenIds[i];
     }
 
     return result;
@@ -123,11 +141,13 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   /// @param _noise The id of the token that's being created
   function newGanToken(uint256 _noise) external payable {
     require(msg.sender != address(0));
-    require(face_mapping[_noise] == 0x0);
+    require(tokenIdToOwner[_noise] == 0x0);
+    require(tokenIds.length < maxSupply);
+    require(msg.value >= claimPrice);
 
-    faceIds.push(_noise);
+    tokenIds.push(_noise);
     ownerBank[msg.sender].push(_noise);
-    face_mapping[_noise] = msg.sender;
+    tokenIdToOwner[_noise] = msg.sender;
     ownershipCounts[msg.sender]++;
 
     emit Transfer(address(0), msg.sender, 0);
@@ -175,12 +195,12 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
     require(_to != 0x0);
     require(_to != address(this));
     require(tokenApprovals[_tokenId] == msg.sender);
-    require(face_mapping[_tokenId] == _from);
+    require(tokenIdToOwner[_tokenId] == _from);
 
     _transfer(_tokenId, _to);
   }
 
-  /// @notice Grant another address the right to transfer a specific face via
+  /// @notice Grant another address the right to transfer a specific token via
   ///  transferFrom(). This is the preferred flow for transfering NFTs to contracts.
   /// @dev The zero address indicates there is no approved address.
   /// @dev Throws unless `msg.sender` is the current NFT owner, or an authorized
@@ -188,7 +208,7 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   /// @dev Required for ERC-721 compliance.
   /// @param _to The address to be granted transfer approval. Pass address(0) to
   ///  clear all approvals.
-  /// @param _tokenId The ID of the Kitty that can be transferred if this call succeeds.
+  /// @param _tokenId The ID of the token that can be transferred if this call succeeds.
   function approve(address _to, uint256 _tokenId) external owns(_tokenId) payable {
       // Register the approval (replacing any previous approval).
       tokenApprovals[_tokenId] = _to;
@@ -226,14 +246,14 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   ///  them has an assigned and queryable owner not equal to the zero address
   /// @dev Required for ERC-721 compliance.
   function totalSupply() external view returns (uint256) {
-    return faceIds.length;
+    return tokenIds.length;
   }
 
   /// @notice Enumerate valid NFTs
   /// @param _index A counter less than `totalSupply()`
   /// @return The token identifier for index the `_index`th NFT 0 if it doesn't exist,
   function tokenByIndex(uint256 _index) external view returns (uint256) {
-      return faceIds[_index];
+      return tokenIds[_index];
   }
 
   /// @notice Enumerate NFTs assigned to an owner
@@ -252,9 +272,9 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   function _transfer(uint256 _tokenId, address _to) internal {
     require(_to != address(0));
 
-    address from = face_mapping[_tokenId];
+    address from = tokenIdToOwner[_tokenId];
     uint256 tokenCount = ownershipCounts[from];
-    // remove from ownerBank and replace the deleted face id
+    // remove from ownerBank and replace the deleted token id
     for (uint256 i = 0; i < tokenCount; i++) {
       uint256 ownedId = ownerBank[from][i];
       if (_tokenId == ownedId) {
@@ -270,7 +290,7 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
     ownershipCounts[_to]++;
     ownerBank[_to].push(_tokenId);
 
-    face_mapping[_tokenId] = _to;
+    tokenIdToOwner[_tokenId] = _to;
     tokenApprovals[_tokenId] = address(0);
     emit Transfer(from, _to, 1);
   }
@@ -280,7 +300,7 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
       private
       canTransfer(_tokenId, _from, _to)
   {
-      address owner = face_mapping[_tokenId];
+      address owner = tokenIdToOwner[_tokenId];
 
       require(owner == _from);
       require(_to != address(0));
@@ -323,7 +343,7 @@ contract GanNFT is ERC165, ERC721, ERC721Enumerable, PublishInterfaces, Ownable 
   /// @dev Adapted from toString(slice) by @arachnid (Nick Johnson <arachnid@notdot.net>)
   ///  This method is licenced under the Apache License.
   ///  Ref: https://github.com/Arachnid/solidity-stringutils/blob/2f6ca9accb48ae14c66f1437ec50ed19a0616f78/strings.sol
-  function _toString(bytes32[4] _rawBytes, uint256 _stringLength) private view returns (string) {
+  function _toString(bytes32[4] _rawBytes, uint256 _stringLength) private pure returns (string) {
       string memory outputString = new string(_stringLength);
       uint256 outputPtr;
       uint256 bytesPtr;

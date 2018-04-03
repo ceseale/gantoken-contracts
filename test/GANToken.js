@@ -1,6 +1,6 @@
 const units = require('ethereumjs-units');
 const BigNumber = require('bignumber.js');
-const GanToken = artifacts.require('../contracts/AnimeFace.sol');
+const GanToken = artifacts.require('../contracts/GanTokenMain.sol');
 contract('GanToken', function(accounts) {
 
   it("should put 0 GanTokens in the first account", async () => {
@@ -79,7 +79,7 @@ contract('GanToken', function(accounts) {
 
   it("should be able to offer a token for sale", async () => {
     let instance = await GanToken.deployed();
-    await instance.offerFaceForSale('134535242323950239442343', units.convert(1.88, 'eth', 'wei'), { from: accounts[0] });
+    await instance.offerGanTokenForSale('134535242323950239442343', units.convert(1.88, 'eth', 'wei'), { from: accounts[0] });
     const saleData = await instance.getSaleData('134535242323950239442343');
 
     assert.equal(saleData[0], true);
@@ -87,7 +87,7 @@ contract('GanToken', function(accounts) {
 
   it("should be able to remove sale", async () => {
     let instance = await GanToken.deployed();
-    await instance.faceNoLongerForSale('134535242323950239442343', { from: accounts[0] });
+    await instance.ganTokenNoLongerForSale('134535242323950239442343', { from: accounts[0] });
     const saleData = await instance.getSaleData('134535242323950239442343');
 
     assert.equal(saleData[0], false);
@@ -96,7 +96,7 @@ contract('GanToken', function(accounts) {
 
   it("should be able to remove sale", async () => {
     let instance = await GanToken.deployed();
-    await instance.faceNoLongerForSale('134535242323950239442343', { from: accounts[0] });
+    await instance.ganTokenNoLongerForSale('134535242323950239442343', { from: accounts[0] });
     const saleData = await instance.getSaleData('134535242323950239442343');
 
     assert.equal(saleData[0], false);
@@ -105,7 +105,7 @@ contract('GanToken', function(accounts) {
 
   it("should be able to offer sale to a specific address", async () => {
     let instance = await GanToken.deployed();
-    await instance.offerFaceForSaleToAddress('134535242323950239442343', accounts[1], units.convert(1, 'eth', 'wei'), { from: accounts[0] });
+    await instance.offerGanTokenForSaleToAddress('134535242323950239442343', accounts[1], units.convert(1, 'eth', 'wei'), { from: accounts[0] });
     const saleData = await instance.getSaleData('134535242323950239442343');
 
     assert.equal(saleData[0], true);
